@@ -23,6 +23,9 @@ export type MenuDish = {
   price: number;
   photo: string | null;
   inStopList: boolean;
+  autoStopped: boolean;
+  cost: number | null;
+  margin: number | null;
 };
 export type MenuCategory = { id: number; nameRu: string; nameTg: string; dishes: MenuDish[] };
 

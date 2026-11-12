@@ -65,7 +65,7 @@ export const DishCard = forwardRef<
           {stopped && (
             <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-pomegranate px-2.5 py-1 text-xs font-semibold text-on-pomegranate">
               <Ban size={13} strokeWidth={2} />
-              {t.menu.stopList}
+              {dish.autoStopped && optimistic === null ? t.stock.autoStopped : t.menu.stopList}
             </span>
           )}
         </div>
@@ -76,6 +76,16 @@ export const DishCard = forwardRef<
           </div>
           {altName !== name && <div className="text-xs text-muted">{altName}</div>}
           {desc && <div className="mt-1 line-clamp-2 text-sm text-muted">{desc}</div>}
+          {dish.cost !== null && dish.margin !== null && (
+            <div className="num mt-auto flex items-center gap-3 pt-2 text-xs">
+              <span className="text-muted">
+                {t.stock.cost} {formatMoney(dish.cost, { currency: false })}
+              </span>
+              <span className={`font-semibold ${dish.margin < 30 ? "text-pomegranate" : dish.margin < 55 ? "text-apricot" : "text-mint"}`}>
+                {t.stock.margin} {dish.margin}%
+              </span>
+            </div>
+          )}
         </div>
       </button>
       <div className="flex items-center justify-between border-t border-line px-4 py-2.5">

@@ -35,7 +35,7 @@ export const NAV: { href: string; key: NavKey; icon: typeof LayoutGrid; roles: R
   { href: "/settings", key: "settings", icon: Settings, roles: ["OWNER"] },
 ];
 
-export function Sidebar({ role, userName }: { role: Role; userName: string }) {
+export function Sidebar({ role, userName, badges = {} }: { role: Role; userName: string; badges?: Partial<Record<NavKey, number>> }) {
   const { t } = useI18n();
   const pathname = usePathname();
   const items = NAV.filter((n) => n.roles.includes(role));
@@ -66,6 +66,11 @@ export function Sidebar({ role, userName }: { role: Role; userName: string }) {
               )}
               <Icon size={20} strokeWidth={1.75} className={`relative ${active ? "text-saffron" : ""}`} />
               <span className="relative">{t.nav[key]}</span>
+              {!!badges[key] && (
+                <span className="num relative ml-auto rounded-full bg-apricot/18 px-2 py-0.5 text-xs font-semibold text-apricot" title={t.stock.low}>
+                  {badges[key]}
+                </span>
+              )}
             </Link>
           );
         })}

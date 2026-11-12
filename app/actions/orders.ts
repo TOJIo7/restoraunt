@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { requireSession, type Session } from "@/lib/session";
 import { getOpenShift } from "@/lib/cash";
 import { computeTotals, FREE_REMOVE_MINUTES } from "@/lib/orders";
+import { applySale } from "@/lib/stock";
 import { ORDER_TYPES, PAYMENT_METHODS } from "@/lib/constants";
 import { int, oneOf, optStr, reqStr, run, ValidationError } from "@/lib/validate";
 
@@ -277,15 +278,25 @@ export async function payOrder(orderId: number, payments: PaymentInput[]) {
       if (paid !== due) throw new ValidationError("paymentMismatch");
 
       await tx.payment.createMany({ data: lines.map((l) => ({ orderId: o.id, ...l })) });
-      // Этап 3: здесь же — списание продуктов по техкартам и себестоимость
-      return tx.order.update({ where: { id: o.id }, data: { status: "PAID", paidAt: new Date(), cashShiftId: shift.id } });
+      // склад: списать продукты по техкартам, запомнить себестоимость, обновить стоп-лист
+      const stock = await applySale(tx, o.id, s.uid);
+      const paidOrder = await tx.order.update({ where: { id: o.id }, data: { status: "PAID", paidAt: new Date(), cashShiftId: shift.id } });
+      return { ...paidOrder, stock };
     });
 
     const change = lines.reduce((sum, l) => sum + (l.received ? l.received - l.amount : 0), 0);
-    await audit(s.uid, "ORDER_PAID", "Order", orderId, { number: result.number, total: result.total, payments: lines, change });
+    await audit(s.uid, "ORDER_PAID", "Order", orderId, {
+      number: result.number,
+      total: result.total,
+      cost: result.costTotal,
+      payments: lines,
+      change,
+    });
+    if (result.stock.stopped.length) await audit(s.uid, "DISH_AUTO_STOPPED", "Dish", null, { dishes: result.stock.stopped });
     refresh(orderId);
     revalidatePath("/cash");
-    return { change };
+    revalidatePath("/", "layout"); // склад изменился — обновить значок в меню
+    return { change, autoStopped: result.stock.stopped };
   });
 }
 

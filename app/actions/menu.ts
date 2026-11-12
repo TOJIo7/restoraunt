@@ -66,6 +66,7 @@ export async function saveDish(form: FormData) {
       descriptionTg: optStr(form.get("descriptionTg"), 300),
       price: money(form.get("price"), { min: 1 }),
       inStopList: form.get("inStopList") === "true",
+      autoStopped: false,
     };
     if (!(await db.category.findFirst({ where: { id: categoryId, active: true } }))) throw new ValidationError("badValue");
 
@@ -104,7 +105,8 @@ export async function saveDish(form: FormData) {
 export async function setStopList(dishId: number, inStopList: boolean) {
   return run(async () => {
     const s = await requireSession();
-    const d = await db.dish.update({ where: { id: int(dishId, { min: 1 }) }, data: { inStopList: !!inStopList } });
+    // ручное решение важнее автоматического: снимаем флаг autoStopped
+    const d = await db.dish.update({ where: { id: int(dishId, { min: 1 }) }, data: { inStopList: !!inStopList, autoStopped: false } });
     await audit(s.uid, inStopList ? "DISH_STOPPED" : "DISH_RESUMED", "Dish", d.id, { name: d.nameRu });
     revalidatePath("/menu");
   });

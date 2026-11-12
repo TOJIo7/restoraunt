@@ -131,6 +131,7 @@ model Dish {
   price         Int
   photo         String?
   inStopList    Boolean      @default(false)
+  autoStopped   Boolean      @default(false) // в стоп-листе потому, что не хватает продукта (снимется сам после прихода)
   active        Boolean      @default(true)
   sort          Int          @default(0)
   recipe        RecipeItem[]
