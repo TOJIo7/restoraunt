@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 // cacheComponents выключен: касса почти полностью динамическая (сессия, смена, заказы),
 // кэширование компонентов здесь только мешает.
 const nextConfig: NextConfig = {
+  experimental: {
+    // фото блюд ужимаются в браузере, но оставляем запас
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   turbopack: {
     rules: {
       "*.css": {

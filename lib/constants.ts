@@ -24,6 +24,18 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const TABLE_STATUSES = ["FREE", "BUSY", "RESERVED", "BILL"] as const;
 export type TableStatus = (typeof TABLE_STATUSES)[number];
 
+export const TABLE_SHAPES = ["square", "round", "long"] as const;
+export type TableShape = (typeof TABLE_SHAPES)[number];
+
+/** Сетка схемы зала (в клетках). */
+export const HALL_COLS = 8;
+export const HALL_ROWS = 5;
+
+/** Ширина стола в клетках сетки. */
+export function tableSpan(shape: string) {
+  return shape === "long" ? 2 : 1;
+}
+
 /** Время бездействия, после которого кассир выходит автоматически. */
 export const CASHIER_IDLE_MS = 15 * 60 * 1000;
 /** Время жизни сессии владельца без активности. */

@@ -1,7 +1,9 @@
 import { requireSession } from "@/lib/session";
-import { ComingSoon } from "@/components/shell/ComingSoon";
+import { getHall } from "@/lib/hall";
+import { HallClient } from "./HallClient";
 
-export default async function Page() {
-  await requireSession();
-  return <ComingSoon section="hall" stage={1} />;
+export default async function HallPage() {
+  const session = await requireSession();
+  const tables = await getHall();
+  return <HallClient tables={tables} canEdit={session.role === "OWNER"} />;
 }
