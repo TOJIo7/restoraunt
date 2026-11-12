@@ -108,6 +108,54 @@ body {
   animation: shimmer 1.8s linear infinite;
 }
 
+/* Горизонтальная прокрутка без системной полосы (ряды категорий) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Тонкая полоса прокрутки в тон теме */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* Печать / «Сохранить PDF»: видно только чек */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* Зубчатый нижний край «бумажного» чека */
+.receipt-paper {
+  --tooth: 10px;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

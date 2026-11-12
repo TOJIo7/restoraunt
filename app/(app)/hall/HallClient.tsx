@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { Check, LayoutDashboard, Plus } from "lucide-react";
-import { useAction, useI18n } from "@/components/Providers";
+import { Check, LayoutDashboard, Plus, ShoppingBag } from "lucide-react";
+import { useAction, useI18n, useToast } from "@/components/Providers";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { fmt } from "@/lib/i18n";
@@ -11,17 +12,33 @@ import { HALL_COLS, HALL_ROWS, TABLE_STATUSES, tableSpan } from "@/lib/constants
 import { saveLayout } from "@/app/actions/hall";
 import type { HallTable } from "@/lib/hall";
 import { STATUS_STYLE, TablePiece } from "./TablePiece";
-import { TableDetails } from "./TableDetails";
+import { NewOrderModal, type FreeTable, type Waiter } from "@/components/orders/NewOrderModal";
+import { NoShiftBanner } from "@/components/orders/NoShiftBanner";
 import { TableForm } from "./TableForm";
 
 type Pos = { x: number; y: number };
 
-export function HallClient({ tables, canEdit }: { tables: HallTable[]; canEdit: boolean }) {
+export function HallClient({
+  tables,
+  canEdit,
+  waiters,
+  freeTables,
+  hasShift,
+}: {
+  tables: HallTable[];
+  canEdit: boolean;
+  waiters: Waiter[];
+  freeTables: FreeTable[];
+  hasShift: boolean;
+}) {
   const { t } = useI18n();
+  const router = useRouter();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [layout, setLayout] = useState<Record<number, Pos>>({});
   const [nonce, setNonce] = useState(0); // сбросить перетаскивание, если клетка занята
-  const [selected, setSelected] = useState<HallTable | null>(null);
+  // новый заказ: за столом (tableId) или «с собой» (null)
+  const [newOrder, setNewOrder] = useState<{ tableId: number | null; note?: string } | null>(null);
   const [form, setForm] = useState<{ open: boolean; table?: HallTable }>({ open: false });
   const [pending, act] = useAction();
   const planRef = useRef<HTMLDivElement>(null);
@@ -73,8 +90,7 @@ export function HallClient({ tables, canEdit }: { tables: HallTable[]; canEdit: 
         title={t.nav.hall}
         subtitle={fmt(t.hall.subtitle, { free: counts.FREE, total: tables.length })}
         actions={
-          canEdit &&
-          (editing ? (
+          editing ? (
             <>
               <Button onClick={() => setForm({ open: true })}>
                 <Plus size={18} strokeWidth={1.75} />
@@ -86,13 +102,23 @@ export function HallClient({ tables, canEdit }: { tables: HallTable[]; canEdit: 
               </Button>
             </>
           ) : (
-            <Button onClick={() => setEditing(true)}>
-              <LayoutDashboard size={18} strokeWidth={1.75} />
-              {t.hall.editLayout}
-            </Button>
-          ))
+            <>
+              {canEdit && (
+                <Button variant="ghost" onClick={() => setEditing(true)}>
+                  <LayoutDashboard size={18} strokeWidth={1.75} />
+                  {t.hall.editLayout}
+                </Button>
+              )}
+              <Button onClick={() => setNewOrder({ tableId: null })} disabled={!hasShift}>
+                <ShoppingBag size={18} strokeWidth={1.75} />
+                {t.orderType.TAKEAWAY}
+              </Button>
+            </>
+          )
         }
       />
+
+      {!hasShift && !editing && <NoShiftBanner />}
 
       {/* Легенда: цвет + иконка + слово + сколько */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -158,8 +184,16 @@ export function HallClient({ tables, canEdit }: { tables: HallTable[]; canEdit: 
                 editing={editing}
                 onClick={() => {
                   if (justDragged.current) return;
-                  if (editing) setForm({ open: true, table: tb });
-                  else setSelected(tb);
+                  if (editing) return setForm({ open: true, table: tb });
+                  // занятый стол — сразу в его заказ; свободный — открыть новый
+                  if (tb.orderId) return router.push(`/orders/${tb.orderId}`);
+                  if (!hasShift) return toast("error", t.errors.noShift);
+                  setNewOrder({
+                    tableId: tb.id,
+                    note: tb.reservation
+                      ? `${fmt(t.hall.reservedAt, { time: new Date(tb.reservation.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) })} · ${tb.reservation.name} · ${fmt(t.hall.guests, { n: tb.reservation.guests })}`
+                      : undefined,
+                  });
                 }}
               />
             </motion.div>
@@ -167,7 +201,17 @@ export function HallClient({ tables, canEdit }: { tables: HallTable[]; canEdit: 
         </div>
       </div>
 
-      <TableDetails table={selected} now={now} onClose={() => setSelected(null)} />
+      {newOrder && (
+        <NewOrderModal
+          open
+          onClose={() => setNewOrder(null)}
+          waiters={waiters}
+          freeTables={freeTables}
+          presetTableId={newOrder.tableId ?? undefined}
+          presetType={newOrder.tableId ? "DINE_IN" : "TAKEAWAY"}
+          reservationNote={newOrder.note}
+        />
+      )}
       <TableForm
         key={form.table?.id ?? `new-${form.open}`}
         open={form.open}
