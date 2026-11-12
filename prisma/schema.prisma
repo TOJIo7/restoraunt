@@ -1,0 +1,367 @@
+// Схема базы данных ресторана.
+// Деньги — в дирамах (целые числа, 1 TJS = 100 дирам).
+// Количество продуктов — в единицах продукта (кг, л, шт), Float с округлением до 0.001.
+// Статусы и типы — строки (SQLite), допустимые значения описаны в lib/constants.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Настройки ----------
+
+model Setting {
+  id              Int     @id @default(1)
+  restaurantName  String  @default("Чайхана «Роҳат»")
+  serviceChargeBp Int     @default(1000) // плата за обслуживание в базисных пунктах: 1000 = 10%
+  soundEnabled    Boolean @default(true)
+}
+
+// ---------- Вход и персонал ----------
+
+model User {
+  id         Int       @id @default(autoincrement())
+  role       String // OWNER | CASHIER
+  name       String
+  pinHash    String
+  active     Boolean   @default(true)
+  employeeId Int?      @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  createdAt  DateTime  @default(now())
+
+  auditLogs       AuditLog[]
+  openedShifts    CashShift[]        @relation("openedBy")
+  closedShifts    CashShift[]        @relation("closedBy")
+  orders          Order[]            @relation("createdBy")
+  cashOperations  CashOperation[]
+  stockMovements  StockMovement[]
+  stockReceipts   StockReceipt[]
+  expenses        Expense[]
+  adjustments     SalaryAdjustment[]
+}
+
+model Employee {
+  id             Int      @id @default(autoincrement())
+  name           String
+  position       String // WAITER | COOK | CASHIER | COURIER | CLEANER | MANAGER
+  phone          String?
+  payType        String // MONTHLY | PER_SHIFT | HOURLY
+  salary         Int      @default(0) // оклад за месяц, дирамы
+  rate           Int      @default(0) // ставка за смену или час, дирамы
+  salesPercentBp Int      @default(0) // процент от продаж: 500 = 5%
+  active         Boolean  @default(true)
+  hiredAt        DateTime @default(now())
+
+  user        User?
+  shifts      Shift[]
+  attendance  Attendance[]
+  adjustments SalaryAdjustment[]
+  orders      Order[]            @relation("waiter")
+  deliveries  Delivery[]         @relation("courier")
+}
+
+model Shift {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  startsAt   DateTime
+  endsAt     DateTime
+
+  @@index([startsAt])
+}
+
+model Attendance {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  checkIn     DateTime
+  checkOut    DateTime?
+  lateMinutes Int       @default(0)
+
+  @@index([checkIn])
+}
+
+model SalaryAdjustment {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        String // ADVANCE | FINE | BONUS
+  amount      Int
+  date        DateTime @default(now())
+  comment     String?
+  createdById Int?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+}
+
+// ---------- Зал и меню ----------
+
+model DiningTable {
+  id           Int           @id @default(autoincrement())
+  number       Int           @unique
+  seats        Int           @default(4)
+  x            Int           @default(0) // позиция на схеме зала (сетка)
+  y            Int           @default(0)
+  shape        String        @default("square") // square | round | long
+  active       Boolean       @default(true)
+  orders       Order[]
+  reservations Reservation[]
+}
+
+model Category {
+  id     Int     @id @default(autoincrement())
+  nameRu String
+  nameTg String
+  sort   Int     @default(0)
+  active Boolean @default(true)
+  dishes Dish[]
+}
+
+model Dish {
+  id            Int          @id @default(autoincrement())
+  categoryId    Int
+  category      Category     @relation(fields: [categoryId], references: [id])
+  nameRu        String
+  nameTg        String
+  descriptionRu String?
+  descriptionTg String?
+  price         Int
+  photo         String?
+  inStopList    Boolean      @default(false)
+  active        Boolean      @default(true)
+  sort          Int          @default(0)
+  recipe        RecipeItem[]
+  orderItems    OrderItem[]
+}
+
+// ---------- Склад ----------
+
+model Ingredient {
+  id         Int             @id @default(autoincrement())
+  nameRu     String
+  nameTg     String
+  unit       String // KG | L | PCS
+  stock      Float           @default(0)
+  minStock   Float           @default(0)
+  lastPrice  Int             @default(0) // цена последней закупки за единицу, дирамы
+  active     Boolean         @default(true)
+  recipes    RecipeItem[]
+  movements  StockMovement[]
+}
+
+model RecipeItem {
+  id           Int        @id @default(autoincrement())
+  dishId       Int
+  dish         Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  ingredientId Int
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  qty          Float // на одну порцию, в единицах продукта
+
+  @@unique([dishId, ingredientId])
+}
+
+model Supplier {
+  id       Int            @id @default(autoincrement())
+  name     String
+  phone    String?
+  receipts StockReceipt[]
+}
+
+model StockReceipt {
+  id          Int             @id @default(autoincrement())
+  supplierId  Int?
+  supplier    Supplier?       @relation(fields: [supplierId], references: [id])
+  date        DateTime        @default(now())
+  total       Int             @default(0)
+  comment     String?
+  createdById Int?
+  createdBy   User?           @relation(fields: [createdById], references: [id])
+  movements   StockMovement[]
+}
+
+model StockMovement {
+  id           Int           @id @default(autoincrement())
+  ingredientId Int
+  ingredient   Ingredient    @relation(fields: [ingredientId], references: [id])
+  type         String // RECEIPT | SALE | WRITE_OFF | INVENTORY | RETURN
+  qty          Float // со знаком: + приход, − расход
+  price        Int? // цена за единицу на момент движения
+  reason       String?
+  orderId      Int?
+  order        Order?        @relation(fields: [orderId], references: [id])
+  receiptId    Int?
+  receipt      StockReceipt? @relation(fields: [receiptId], references: [id])
+  createdById  Int?
+  createdBy    User?         @relation(fields: [createdById], references: [id])
+  createdAt    DateTime      @default(now())
+
+  @@index([ingredientId, createdAt])
+}
+
+// ---------- Заказы и оплата ----------
+
+model Order {
+  id                Int        @id @default(autoincrement())
+  number            Int        @unique
+  type              String // DINE_IN | TAKEAWAY | DELIVERY
+  status            String     @default("OPEN") // OPEN | BILL | PAID | CANCELLED
+  tableId           Int?
+  table             DiningTable? @relation(fields: [tableId], references: [id])
+  waiterId          Int?
+  waiter            Employee?  @relation("waiter", fields: [waiterId], references: [id])
+  guests            Int?
+  comment           String?
+  discountType      String? // PERCENT | AMOUNT
+  discountValue     Int        @default(0) // для PERCENT — базисные пункты, для AMOUNT — дирамы
+  discountReason    String?
+  discountAmount    Int        @default(0)
+  serviceChargeBp   Int        @default(0)
+  serviceAmount     Int        @default(0)
+  deliveryFee       Int        @default(0)
+  subtotal          Int        @default(0)
+  total             Int        @default(0)
+  costTotal         Int        @default(0) // себестоимость на момент оплаты
+  prepaymentApplied Int        @default(0)
+  cashShiftId       Int?
+  cashShift         CashShift? @relation(fields: [cashShiftId], references: [id])
+  createdById       Int?
+  createdBy         User?      @relation("createdBy", fields: [createdById], references: [id])
+  openedAt          DateTime   @default(now())
+  paidAt            DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+
+  items          OrderItem[]
+  payments       Payment[]
+  delivery       Delivery?
+  reservation    Reservation?
+  stockMovements StockMovement[]
+
+  @@index([status])
+  @@index([paidAt])
+}
+
+model OrderItem {
+  id            Int      @id @default(autoincrement())
+  orderId       Int
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishId        Int
+  dish          Dish     @relation(fields: [dishId], references: [id])
+  qty           Int
+  price         Int // цена на момент заказа
+  costPrice     Int      @default(0) // себестоимость порции на момент оплаты
+  comment       String?
+  removed       Boolean  @default(false)
+  removedReason String?
+  createdAt     DateTime @default(now())
+}
+
+model Delivery {
+  id           Int       @id @default(autoincrement())
+  orderId      Int       @unique
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerName String
+  phone        String
+  address      String
+  fee          Int       @default(0)
+  courierId    Int?
+  courier      Employee? @relation("courier", fields: [courierId], references: [id])
+  status       String    @default("COOKING") // COOKING | ON_WAY | DELIVERED
+  updatedAt    DateTime  @updatedAt
+}
+
+model Reservation {
+  id               Int          @id @default(autoincrement())
+  startsAt         DateTime
+  guests           Int
+  tableId          Int?
+  table            DiningTable? @relation(fields: [tableId], references: [id])
+  wholeHall        Boolean      @default(false)
+  name             String
+  phone            String
+  prepayment       Int          @default(0)
+  prepaymentMethod String?
+  status           String       @default("BOOKED") // BOOKED | SEATED | DONE | CANCELLED
+  comment          String?
+  orderId          Int?         @unique
+  order            Order?       @relation(fields: [orderId], references: [id])
+  createdAt        DateTime     @default(now())
+
+  @@index([startsAt])
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method    String // CASH | CARD | TRANSFER | QR
+  provider  String? // Алиф, Душанбе Сити и т.д.
+  amount    Int
+  received  Int? // сколько дал гость наличными (для сдачи)
+  createdAt DateTime @default(now())
+}
+
+// ---------- Касса и финансы ----------
+
+model CashShift {
+  id           Int             @id @default(autoincrement())
+  openedById   Int
+  openedBy     User            @relation("openedBy", fields: [openedById], references: [id])
+  closedById   Int?
+  closedBy     User?           @relation("closedBy", fields: [closedById], references: [id])
+  openedAt     DateTime        @default(now())
+  closedAt     DateTime?
+  openingCash  Int
+  expectedCash Int?
+  actualCash   Int?
+  difference   Int?
+  comment      String?
+  orders       Order[]
+  operations   CashOperation[]
+}
+
+model CashOperation {
+  id          Int       @id @default(autoincrement())
+  cashShiftId Int
+  cashShift   CashShift @relation(fields: [cashShiftId], references: [id])
+  type        String // EXPENSE | DEPOSIT | WITHDRAWAL
+  amount      Int
+  category    String?
+  comment     String?
+  createdById Int?
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  expense     Expense?
+}
+
+model Expense {
+  id              Int            @id @default(autoincrement())
+  category        String // RENT | UTILITIES | PURCHASE | SALARY | OTHER
+  amount          Int
+  date            DateTime       @default(now())
+  comment         String?
+  cashOperationId Int?           @unique
+  cashOperation   CashOperation? @relation(fields: [cashOperationId], references: [id])
+  createdById     Int?
+  createdBy       User?          @relation(fields: [createdById], references: [id])
+
+  @@index([date])
+}
+
+// ---------- Журнал ----------
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String // например LOGIN, ORDER_PAID, STOCK_RECEIPT
+  entity    String
+  entityId  String?
+  details   String? // JSON
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

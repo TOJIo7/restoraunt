@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* ===== Дизайн-токены «Чайхана вечером» =====
+   Тёмная тема — основная. Светлая — для отчётов и печати.
+   Переключение: атрибут data-theme на <html>. */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14110f; /* Уголь */
+  --surface: #1f1a16; /* Орех */
+  --surface-2: #2a231d; /* Чинара */
+  --line: #3a3028; /* Глина */
+  --text: #f5ede1; /* Молоко */
+  --muted: #b4a898; /* Пыль */
+  --saffron: #f2a93b; /* Шафран */
+  --on-saffron: #1a130b;
+  --pomegranate: #c8442f; /* Гранат */
+  --on-pomegranate: #fff7ef;
+  --mint: #3fa796; /* Мята */
+  --lapis: #4a7bd0; /* Лазурит */
+  --apricot: #e8794a; /* Абрикос */
+  --glow: rgba(242, 169, 59, 0.18);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f1e8;
+  --surface: #fffcf7;
+  --surface-2: #f1e8da;
+  --line: #e3d8c8;
+  --text: #1e1915;
+  --muted: #6b5f51;
+  --saffron: #d98a1a;
+  --on-saffron: #1e1915;
+  --pomegranate: #b23a27;
+  --on-pomegranate: #fffcf7;
+  --mint: #2e8a7a;
+  --lapis: #3563b5;
+  --apricot: #c4602f;
+  --glow: rgba(217, 138, 26, 0.16);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-saffron: var(--saffron);
+  --color-on-saffron: var(--on-saffron);
+  --color-pomegranate: var(--pomegranate);
+  --color-on-pomegranate: var(--on-pomegranate);
+  --color-mint: var(--mint);
+  --color-lapis: var(--lapis);
+  --color-apricot: var(--apricot);
+
+  --font-sans: var(--font-onest), system-ui, sans-serif;
+  --font-display: var(--font-geologica), var(--font-onest), system-ui, sans-serif;
+
+  --radius-btn: 12px;
+  --radius-card: 16px;
+  --radius-modal: 24px;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Заголовки: Geologica с «острыми» срезами */
+.font-display {
+  font-variation-settings: "SHRP" 70;
+  letter-spacing: -0.01em;
+}
+
+/* Деньги и остатки — табличные цифры, чтобы суммы стояли ровно */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+::selection {
+  background: var(--saffron);
+  color: var(--on-saffron);
+}
+
+:focus-visible {
+  outline: 2px solid var(--saffron);
+  outline-offset: 2px;
+}
+
+/* Скелетон: медленное мерцание вместо крутилки */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 0px, var(--surface-2) 160px, var(--surface) 320px);
+  background-size: 800px 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
