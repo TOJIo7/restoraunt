@@ -12,7 +12,7 @@ import { HALL_COLS, HALL_ROWS, TABLE_STATUSES, tableSpan } from "@/lib/constants
 import { saveLayout } from "@/app/actions/hall";
 import type { HallTable } from "@/lib/hall";
 import { STATUS_STYLE, TablePiece } from "./TablePiece";
-import { NewOrderModal, type FreeTable, type Waiter } from "@/components/orders/NewOrderModal";
+import { NewOrderModal, type FreeTable, type HallReservation, type Waiter } from "@/components/orders/NewOrderModal";
 import { NoShiftBanner } from "@/components/orders/NoShiftBanner";
 import { TableForm } from "./TableForm";
 
@@ -22,12 +22,14 @@ export function HallClient({
   tables,
   canEdit,
   waiters,
+  couriers,
   freeTables,
   hasShift,
 }: {
   tables: HallTable[];
   canEdit: boolean;
   waiters: Waiter[];
+  couriers: Waiter[];
   freeTables: FreeTable[];
   hasShift: boolean;
 }) {
@@ -38,7 +40,7 @@ export function HallClient({
   const [layout, setLayout] = useState<Record<number, Pos>>({});
   const [nonce, setNonce] = useState(0); // сбросить перетаскивание, если клетка занята
   // новый заказ: за столом (tableId) или «с собой» (null)
-  const [newOrder, setNewOrder] = useState<{ tableId: number | null; note?: string } | null>(null);
+  const [newOrder, setNewOrder] = useState<{ tableId: number | null; reservation?: HallReservation | null } | null>(null);
   const [form, setForm] = useState<{ open: boolean; table?: HallTable }>({ open: false });
   const [pending, act] = useAction();
   const planRef = useRef<HTMLDivElement>(null);
@@ -188,12 +190,7 @@ export function HallClient({
                   // занятый стол — сразу в его заказ; свободный — открыть новый
                   if (tb.orderId) return router.push(`/orders/${tb.orderId}`);
                   if (!hasShift) return toast("error", t.errors.noShift);
-                  setNewOrder({
-                    tableId: tb.id,
-                    note: tb.reservation
-                      ? `${fmt(t.hall.reservedAt, { time: new Date(tb.reservation.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) })} · ${tb.reservation.name} · ${fmt(t.hall.guests, { n: tb.reservation.guests })}`
-                      : undefined,
-                  });
+                  setNewOrder({ tableId: tb.id, reservation: tb.reservation });
                 }}
               />
             </motion.div>
@@ -206,10 +203,11 @@ export function HallClient({
           open
           onClose={() => setNewOrder(null)}
           waiters={waiters}
+          couriers={couriers}
           freeTables={freeTables}
           presetTableId={newOrder.tableId ?? undefined}
           presetType={newOrder.tableId ? "DINE_IN" : "TAKEAWAY"}
-          reservationNote={newOrder.note}
+          reservation={newOrder.reservation}
         />
       )}
       <TableForm

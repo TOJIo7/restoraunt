@@ -7,6 +7,9 @@ import { ArrowLeft, FileDown, XCircle } from "lucide-react";
 import { useI18n } from "@/components/Providers";
 import { Button } from "@/components/ui/Button";
 import { Receipt } from "@/components/orders/Receipt";
+import { DeliveryPanel } from "@/components/orders/DeliveryPanel";
+import { Card } from "@/components/ui/Card";
+import type { Waiter } from "@/components/orders/NewOrderModal";
 import { fmt } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
 import { burst, playChime } from "@/lib/fx";
@@ -14,7 +17,7 @@ import type { OrderView } from "@/lib/order-view";
 import { CancelModal } from "./dialogs";
 import { JUST_PAID_KEY } from "./PayModal";
 
-export function PaidOrderView({ order, restaurantName, isOwner }: { order: OrderView; restaurantName: string; isOwner: boolean }) {
+export function PaidOrderView({ order, restaurantName, isOwner, couriers }: { order: OrderView; restaurantName: string; isOwner: boolean; couriers: Waiter[] }) {
   const { t } = useI18n();
   // Только что оплатили? Флаг кладёт окно оплаты. Экран монтируется в браузере сразу после оплаты,
   // поэтому читаем его при первом рендере — чтобы галочка успела анимироваться.
@@ -91,6 +94,12 @@ export function PaidOrderView({ order, restaurantName, isOwner }: { order: Order
             <div className="text-sm text-muted">{t.pay.giveChange}</div>
             <div className="num font-display text-4xl font-semibold text-mint">{formatMoney(justPaid.change)}</div>
           </motion.div>
+        )}
+
+        {!cancelled && order.delivery && order.delivery.status !== "DELIVERED" && (
+          <Card className="p-4">
+            <DeliveryPanel orderId={order.id} delivery={order.delivery} couriers={couriers} canEditFee={false} />
+          </Card>
         )}
 
         {!cancelled && <p className="text-sm text-muted">{t.orders.readOnlyPaid}</p>}

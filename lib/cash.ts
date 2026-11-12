@@ -17,12 +17,14 @@ export type ShiftSummary = {
   deposits: number;
   withdrawals: number;
   expenses: number;
+  prepayments: number; // предоплаты за брони (все способы)
+  prepaymentsCash: number; // из них наличными — лежат в кассе
   expectedCash: number;
 };
 
 /**
  * Сводка по кассовой смене.
- * Ожидаемые наличные = на начало + продажи наличными + внесения − изъятия − расходы из кассы.
+ * Ожидаемые наличные = на начало + продажи наличными + предоплаты наличными + внесения − изъятия − расходы.
  * Заказ, отменённый после оплаты, в продажи не входит (деньги вернули гостю).
  */
 export async function getShiftSummary(shiftId: number, tx: Tx = db): Promise<ShiftSummary> {
@@ -40,11 +42,15 @@ export async function getShiftSummary(shiftId: number, tx: Tx = db): Promise<Shi
     byType[o.type] = (byType[o.type] ?? 0) + o.total;
     for (const p of o.payments) byMethod[p.method] = (byMethod[p.method] ?? 0) + p.amount;
   }
-  const sum = (type: string) => ops.filter((x) => x.type === type).reduce((s, x) => s + x.amount, 0);
+  const sum = (type: string, onlyCash = false) =>
+    ops.filter((x) => x.type === type && (!onlyCash || x.category === "CASH")).reduce((s, x) => s + x.amount, 0);
   const deposits = sum("DEPOSIT");
   const withdrawals = sum("WITHDRAWAL");
   const expenses = sum("EXPENSE");
   const cashSales = byMethod.CASH;
+  // предоплата за брони: в category — способ оплаты; в кассе лежит только наличная
+  const prepayments = sum("PREPAYMENT") - sum("PREPAYMENT_REFUND");
+  const prepaymentsCash = sum("PREPAYMENT", true) - sum("PREPAYMENT_REFUND", true);
 
   return {
     ordersCount: orders.length,
@@ -55,6 +61,8 @@ export async function getShiftSummary(shiftId: number, tx: Tx = db): Promise<Shi
     deposits,
     withdrawals,
     expenses,
-    expectedCash: shift.openingCash + cashSales + deposits - withdrawals - expenses,
+    prepayments,
+    prepaymentsCash,
+    expectedCash: shift.openingCash + cashSales + prepaymentsCash + deposits - withdrawals - expenses,
   };
 }

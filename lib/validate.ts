@@ -48,6 +48,14 @@ export function money(v: unknown, { min = 0 } = {}): number {
   return n;
 }
 
+/** Телефон: от 7 до 15 цифр, допускаются +, пробелы, скобки и дефисы. Хранится как ввели. */
+export function phone(v: unknown): string {
+  const s = reqStr(v, 30);
+  const digits = s.replace(/\D/g, "");
+  if (!/^[+\d\s()-]+$/.test(s) || digits.length < 7 || digits.length > 15) throw new ValidationError("badPhone");
+  return s;
+}
+
 export function oneOf<T extends string>(v: unknown, list: readonly T[]): T {
   if (typeof v !== "string" || !list.includes(v as T)) throw new ValidationError("badValue");
   return v as T;

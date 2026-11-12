@@ -24,6 +24,13 @@ export type OrderCard = {
   total: number;
   at: string;
   openedAt: string;
+  delivery: { status: string; address: string; customer: string; courier: string | null } | null;
+};
+
+const DELIVERY_CLS: Record<string, string> = {
+  COOKING: "bg-apricot/14 text-apricot",
+  ON_WAY: "bg-lapis/14 text-lapis",
+  DELIVERED: "bg-mint/14 text-mint",
 };
 
 const TYPE_ICON = { DINE_IN: UtensilsCrossed, TAKEAWAY: ShoppingBag, DELIVERY: Truck } as Record<string, typeof Truck>;
@@ -33,13 +40,15 @@ export function OrdersClient({
   orders,
   counts,
   waiters,
+  couriers,
   freeTables,
   hasShift,
 }: {
-  tab: "open" | "paid" | "cancelled";
+  tab: "open" | "delivery" | "paid" | "cancelled";
   orders: OrderCard[];
   counts: Record<string, number>;
   waiters: Waiter[];
+  couriers: Waiter[];
   freeTables: FreeTable[];
   hasShift: boolean;
 }) {
@@ -53,6 +62,7 @@ export function OrdersClient({
 
   const tabs = [
     { id: "open", label: t.orders.open },
+    { id: "delivery", label: t.orders.deliveries },
     { id: "paid", label: t.orders.paidToday },
     { id: "cancelled", label: t.orders.cancelled },
   ] as const;
@@ -87,13 +97,13 @@ export function OrdersClient({
       </div>
 
       {orders.length === 0 ? (
-        <EmptyState title={t.orders.empty} text={tab === "open" ? t.orders.emptyOpen : ""} />
+        <EmptyState title={t.orders.empty} text={tab === "open" ? t.orders.emptyOpen : tab === "delivery" ? t.delivery.emptyActive : ""} />
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
           {orders.map((o, i) => {
             const Icon = TYPE_ICON[o.type] ?? UtensilsCrossed;
             const minutes = Math.floor((now - new Date(o.openedAt).getTime()) / 60000);
-            const title = o.type === "DINE_IN" ? fmt(t.hall.table, { n: o.tableNumber ?? "" }) : t.orderType[o.type as "TAKEAWAY"];
+            const title = o.type === "DINE_IN" ? fmt(t.hall.table, { n: o.tableNumber ?? "" }) : o.delivery ? o.delivery.customer : t.orderType[o.type as "TAKEAWAY"];
             const statusCls =
               o.status === "BILL" ? "text-saffron" : o.status === "PAID" ? "text-mint" : o.status === "CANCELLED" ? "text-pomegranate" : "text-muted";
             return (
@@ -111,6 +121,15 @@ export function OrdersClient({
                     </div>
                     <span className="num text-sm text-muted">№{o.number}</span>
                   </div>
+                  {o.delivery && (
+                    <div className="flex flex-col gap-1.5 text-sm">
+                      <span className="truncate text-muted">{o.delivery.address}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${DELIVERY_CLS[o.delivery.status]}`}>{t.delivery.status[o.delivery.status as "COOKING"]}</span>
+                        {o.delivery.courier && <span className="text-muted">{o.delivery.courier}</span>}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                     {o.waiterName && (
                       <span className="inline-flex items-center gap-1.5">
@@ -120,7 +139,7 @@ export function OrdersClient({
                     )}
                     <span className="num inline-flex items-center gap-1.5">
                       <Clock size={14} strokeWidth={1.75} />
-                      {tab === "open"
+                      {tab === "open" || tab === "delivery"
                         ? fmt(t.hall.busyFor, { m: minutes })
                         : new Date(o.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -138,7 +157,7 @@ export function OrdersClient({
         </div>
       )}
 
-      {newOpen && <NewOrderModal open onClose={() => setNewOpen(false)} waiters={waiters} freeTables={freeTables} />}
+      {newOpen && <NewOrderModal open onClose={() => setNewOpen(false)} waiters={waiters} couriers={couriers} freeTables={freeTables} />}
     </>
   );
 }

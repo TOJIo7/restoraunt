@@ -7,10 +7,11 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireSession, type Session } from "@/lib/session";
 import { getOpenShift } from "@/lib/cash";
-import { computeTotals, FREE_REMOVE_MINUTES } from "@/lib/orders";
+import { FREE_REMOVE_MINUTES } from "@/lib/orders";
+import { createOrderRecord, recalc } from "@/lib/order-ops";
 import { applySale } from "@/lib/stock";
-import { ORDER_TYPES, PAYMENT_METHODS } from "@/lib/constants";
-import { int, oneOf, optStr, reqStr, run, ValidationError } from "@/lib/validate";
+import { DELIVERY_STATUSES, ORDER_TYPES, PAYMENT_METHODS } from "@/lib/constants";
+import { int, money, oneOf, optStr, phone, reqStr, run, ValidationError } from "@/lib/validate";
 
 type Tx = Prisma.TransactionClient;
 
@@ -18,22 +19,6 @@ function refresh(orderId?: number) {
   revalidatePath("/hall");
   revalidatePath("/orders");
   if (orderId) revalidatePath(`/orders/${orderId}`);
-}
-
-/** Пересчитать и сохранить суммы заказа после любого изменения. */
-async function recalc(tx: Tx, orderId: number) {
-  const o = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
-  const t = computeTotals(o);
-  return tx.order.update({
-    where: { id: orderId },
-    data: {
-      subtotal: t.subtotal,
-      discountAmount: t.discountAmount,
-      serviceAmount: t.serviceAmount,
-      total: t.total,
-      prepaymentApplied: t.prepaymentApplied,
-    },
-  });
 }
 
 /** Заказ, который ещё можно менять (не оплачен и не отменён). */
@@ -59,7 +44,15 @@ async function isOwnerPin(pin: string | undefined) {
 
 // ---------- Создание ----------
 
-export async function createOrder(input: { type: string; tableId?: number | null; waiterId?: number | null; guests?: number | null }) {
+export type DeliveryInput = { customerName: string; phone: string; address: string; fee: string; courierId?: number | null };
+
+export async function createOrder(input: {
+  type: string;
+  tableId?: number | null;
+  waiterId?: number | null;
+  guests?: number | null;
+  delivery?: DeliveryInput | null;
+}) {
   return run(async () => {
     const s = await requireSession();
     const type = oneOf(input.type, ORDER_TYPES);
@@ -67,6 +60,7 @@ export async function createOrder(input: { type: string; tableId?: number | null
     const tableId = type === "DINE_IN" ? int(input.tableId, { min: 1 }) : null;
     const waiterId = input.waiterId ? int(input.waiterId, { min: 1 }) : null;
     const guests = input.guests ? int(input.guests, { min: 1, max: 200 }) : null;
+    const delivery = type === "DELIVERY" ? parseDelivery(input.delivery) : null;
 
     const order = await db.$transaction(async (tx) => {
       if (tableId) {
@@ -76,23 +70,63 @@ export async function createOrder(input: { type: string; tableId?: number | null
         const existing = await tx.order.findFirst({ where: { tableId, status: { in: ["OPEN", "BILL"] } } });
         if (existing) return existing;
       }
-      const settings = await tx.setting.findUnique({ where: { id: 1 } });
-      const last = await tx.order.aggregate({ _max: { number: true } });
-      return tx.order.create({
-        data: {
-          number: (last._max.number ?? 1000) + 1,
-          type,
-          tableId,
-          waiterId,
-          guests,
-          serviceChargeBp: type === "DINE_IN" ? (settings?.serviceChargeBp ?? 0) : 0,
-          createdById: s.uid,
-        },
-      });
+      const created = await createOrderRecord(tx, { type, tableId, waiterId, guests, createdById: s.uid });
+      if (delivery) {
+        await tx.delivery.create({ data: { orderId: created.id, ...delivery } });
+        await recalc(tx, created.id);
+      }
+      return created;
     });
     await audit(s.uid, "ORDER_CREATED", "Order", order.id, { number: order.number, type, tableId });
     refresh();
     return { id: order.id };
+  });
+}
+
+function parseDelivery(d: DeliveryInput | null | undefined) {
+  if (!d) throw new ValidationError("required");
+  return {
+    customerName: reqStr(d.customerName, 80),
+    phone: phone(d.phone),
+    address: reqStr(d.address, 200),
+    fee: d.fee ? money(d.fee) : 0,
+    courierId: d.courierId ? int(d.courierId, { min: 1 }) : null,
+  };
+}
+
+// ---------- Доставка ----------
+
+/** Изменить данные доставки (адрес, телефон, стоимость, курьер). Стоимость — только до оплаты. */
+export async function updateDelivery(orderId: number, input: DeliveryInput) {
+  return run(async () => {
+    const s = await requireSession();
+    const data = parseDelivery(input);
+    await db.$transaction(async (tx) => {
+      const o = await tx.order.findUnique({ where: { id: int(orderId, { min: 1 }) }, include: { delivery: true } });
+      if (!o?.delivery) throw new ValidationError("notFound");
+      if (o.status === "CANCELLED") throw new ValidationError("orderCancelled");
+      const feeChanged = data.fee !== o.delivery.fee;
+      if (o.status === "PAID" && feeChanged) throw new ValidationError("orderPaid");
+      await tx.delivery.update({ where: { orderId: o.id }, data });
+      if (feeChanged) await recalc(tx, o.id);
+    });
+    await audit(s.uid, "DELIVERY_UPDATED", "Order", orderId, data);
+    refresh(orderId);
+  });
+}
+
+/** Статус доставки: готовится → в пути → доставлен. Можно и после оплаты (оплатили при заказе). */
+export async function setDeliveryStatus(orderId: number, status: string) {
+  return run(async () => {
+    const s = await requireSession();
+    const st = oneOf(status, DELIVERY_STATUSES);
+    const o = await db.order.findUnique({ where: { id: int(orderId, { min: 1 }) }, include: { delivery: true } });
+    if (!o?.delivery) throw new ValidationError("notFound");
+    if (o.status === "CANCELLED") throw new ValidationError("orderCancelled");
+    if (st === "ON_WAY" && !o.delivery.courierId) throw new ValidationError("courierRequired");
+    await db.delivery.update({ where: { orderId: o.id }, data: { status: st } });
+    await audit(s.uid, "DELIVERY_STATUS", "Order", o.id, { status: st });
+    refresh(o.id);
   });
 }
 
@@ -281,6 +315,7 @@ export async function payOrder(orderId: number, payments: PaymentInput[]) {
       // склад: списать продукты по техкартам, запомнить себестоимость, обновить стоп-лист
       const stock = await applySale(tx, o.id, s.uid);
       const paidOrder = await tx.order.update({ where: { id: o.id }, data: { status: "PAID", paidAt: new Date(), cashShiftId: shift.id } });
+      await tx.reservation.updateMany({ where: { orderId: o.id }, data: { status: "DONE" } });
       return { ...paidOrder, stock };
     });
 

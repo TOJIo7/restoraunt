@@ -10,6 +10,7 @@ import { AnimatedMoney } from "@/components/ui/AnimatedMoney";
 import { Select } from "@/components/ui/Field";
 import { Stepper, type FreeTable, type Waiter } from "@/components/orders/NewOrderModal";
 import { NoShiftBanner } from "@/components/orders/NoShiftBanner";
+import { DeliveryPanel } from "@/components/orders/DeliveryPanel";
 import { fmt, pickName } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
 import { computeTotals, FREE_REMOVE_MINUTES } from "@/lib/orders";
@@ -32,6 +33,7 @@ export function OrderScreen({
   order,
   menu,
   waiters,
+  couriers,
   freeTables,
   hasShift,
   isOwner,
@@ -40,6 +42,7 @@ export function OrderScreen({
   order: OrderView;
   menu: PickerMenu;
   waiters: Waiter[];
+  couriers: Waiter[];
   freeTables: FreeTable[];
   hasShift: boolean;
   isOwner: boolean;
@@ -64,6 +67,7 @@ export function OrderScreen({
   const totals = computeTotals(order);
   const count = items.reduce((s, i) => s + i.qty, 0);
   const title = order.type === "DINE_IN" ? fmt(t.hall.table, { n: order.tableNumber ?? "" }) : t.orderType[order.type as "TAKEAWAY"];
+  const isDelivery = order.type === "DELIVERY" && !!order.delivery;
 
   /** Блюдо «летит» из плитки в чек, а заказ обновляется на сервере параллельно. */
   const pick = (dish: { id: number; nameRu: string; nameTg: string }, el: HTMLElement) => {
@@ -99,7 +103,12 @@ export function OrderScreen({
 
       {/* Чек */}
       <aside className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line p-4">
+        {isDelivery && (
+          <div className="border-b border-line p-4">
+            <DeliveryPanel orderId={order.id} delivery={order.delivery!} couriers={couriers} canEditFee />
+          </div>
+        )}
+        <div className={`flex flex-wrap items-center gap-2 border-b border-line p-4 ${isDelivery ? "hidden" : ""}`}>
           <div className="min-w-[150px] flex-1">
             <Select
               value={order.waiterId ?? ""}
@@ -194,6 +203,8 @@ export function OrderScreen({
               />
             )}
             {totals.serviceAmount > 0 && <Line label={fmt(t.orders.service, { p: order.serviceChargeBp / 100 })} value={totals.serviceAmount} />}
+            {totals.deliveryFee > 0 && <Line label={t.orders.delivery} value={totals.deliveryFee} />}
+            {totals.prepaymentApplied > 0 && <Line label={t.orders.prepayment} value={-totals.prepaymentApplied} className="text-lapis" />}
           </dl>
           <div className="mb-4 flex items-baseline justify-between">
             <span className="text-muted">{t.orders.total}</span>

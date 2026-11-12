@@ -11,7 +11,8 @@ export async function getOrderView(id: number) {
       table: { select: { number: true } },
       waiter: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
-      delivery: true,
+      delivery: { include: { courier: { select: { name: true } } } },
+      reservation: { select: { id: true, name: true, prepayment: true, prepaymentMethod: true } },
     },
   });
   if (!o) return null;
@@ -50,6 +51,18 @@ export async function getOrderView(id: number) {
       createdAt: i.createdAt.toISOString(),
     })),
     payments: o.payments.map((p) => ({ id: p.id, method: p.method, amount: p.amount, received: p.received, provider: p.provider })),
+    delivery: o.delivery
+      ? {
+          customerName: o.delivery.customerName,
+          phone: o.delivery.phone,
+          address: o.delivery.address,
+          fee: o.delivery.fee,
+          courierId: o.delivery.courierId,
+          courierName: o.delivery.courier?.name ?? null,
+          status: o.delivery.status,
+        }
+      : null,
+    reservation: o.reservation,
   };
 }
 export type OrderView = NonNullable<Awaited<ReturnType<typeof getOrderView>>>;
@@ -73,6 +86,10 @@ export type PickerMenu = Awaited<ReturnType<typeof getPickerMenu>>;
 
 export async function getWaiters() {
   return db.employee.findMany({ where: { active: true, position: "WAITER" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+}
+
+export async function getCouriers() {
+  return db.employee.findMany({ where: { active: true, position: "COURIER" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 }
 
 export async function getSettings() {

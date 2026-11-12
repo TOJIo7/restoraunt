@@ -51,11 +51,12 @@ export function TablePiece({ table, now, editing, onClick }: { table: HallTable;
     ? new Date(table.reservation.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
     : null;
 
+  // подпись всегда со словом статуса (цвет + иконка + слово)
   const caption =
     table.status === "BUSY" && minutes !== null
-      ? fmt(t.hall.busyFor, { m: minutes })
+      ? fmt(t.hall.busyCaption, { m: minutes })
       : table.status === "RESERVED" && resTime
-        ? resTime
+        ? fmt(t.hall.reservedCaption, { time: resTime })
         : t.tableStatus[table.status];
 
   const shapeCls =

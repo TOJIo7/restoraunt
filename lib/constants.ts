@@ -21,6 +21,12 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const PAYMENT_METHODS = ["CASH", "CARD", "TRANSFER", "QR"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const DELIVERY_STATUSES = ["COOKING", "ON_WAY", "DELIVERED"] as const;
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
+export const RESERVATION_STATUSES = ["BOOKED", "SEATED", "DONE", "CANCELLED", "NO_SHOW"] as const;
+export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
+
 export const TABLE_STATUSES = ["FREE", "BUSY", "RESERVED", "BILL"] as const;
 export type TableStatus = (typeof TABLE_STATUSES)[number];
 

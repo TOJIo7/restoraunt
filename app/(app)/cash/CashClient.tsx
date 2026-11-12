@@ -130,6 +130,7 @@ function OpenShiftView({ shift, operations, openOrders, onClosed }: { shift: Shi
             <Stat label={t.cash.deposits} value={s.deposits} sign="+" />
             <Stat label={t.cash.withdrawals} value={s.withdrawals} sign="−" />
             <Stat label={t.cash.expenses} value={s.expenses} sign="−" />
+            {s.prepayments !== 0 && <Stat label={t.cash.prepayments} value={s.prepaymentsCash} sign="+" />}
           </dl>
         </Card>
 
@@ -176,11 +177,19 @@ function OpenShiftView({ shift, operations, openOrders, onClosed }: { shift: Shi
                 <li key={o.id} className="flex items-center gap-3 border-t border-line py-2.5 text-sm first:border-t-0">
                   <span className="num w-11 text-muted">{time(o.at)}</span>
                   <span className="min-w-0 flex-1 truncate">
-                    {o.type === "EXPENSE" ? t.cash.expenseCategory[o.category as "OTHER"] : o.type === "DEPOSIT" ? t.cash.deposit : t.cash.withdrawal}
+                    {o.type === "EXPENSE"
+                      ? t.cash.expenseCategory[o.category as "OTHER"]
+                      : o.type === "DEPOSIT"
+                        ? t.cash.deposit
+                        : o.type === "PREPAYMENT"
+                          ? `${t.cash.prepayment} · ${t.payMethod[o.category as "CASH"] ?? ""}`
+                          : o.type === "PREPAYMENT_REFUND"
+                            ? t.cash.prepaymentRefund
+                            : t.cash.withdrawal}
                     {o.comment && <span className="text-muted"> · {o.comment}</span>}
                   </span>
-                  <span className={`num font-semibold ${o.type === "DEPOSIT" ? "text-mint" : ""}`}>
-                    {o.type === "DEPOSIT" ? "+" : "−"}
+                  <span className={`num font-semibold ${o.type === "DEPOSIT" || o.type === "PREPAYMENT" ? "text-mint" : ""}`}>
+                    {o.type === "DEPOSIT" || o.type === "PREPAYMENT" ? "+" : "−"}
                     {formatMoney(o.amount, { currency: false })}
                   </span>
                 </li>

@@ -17,7 +17,7 @@ export type HallTable = {
   since: string | null;
   orderId: number | null;
   orderTotal: number | null;
-  reservation: { name: string; at: string; guests: number } | null;
+  reservation: { id: number; name: string; at: string; guests: number; wholeHall: boolean; prepayment: number } | null;
 };
 
 /** Статус стола считается из заказов и броней — отдельно не хранится, поэтому не «застревает». */
@@ -71,7 +71,10 @@ export async function getHall(): Promise<HallTable[]> {
       since: order ? order.openedAt.toISOString() : null,
       orderId: order?.id ?? null,
       orderTotal: order?.total ?? null,
-      reservation: !order && res ? { name: res.name, at: res.startsAt.toISOString(), guests: res.guests } : null,
+      reservation:
+        !order && res
+          ? { id: res.id, name: res.name, at: res.startsAt.toISOString(), guests: res.guests, wholeHall: res.wholeHall, prepayment: res.prepayment }
+          : null,
     };
   });
 }

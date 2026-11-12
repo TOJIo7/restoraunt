@@ -39,6 +39,13 @@ export function Receipt({ order, restaurantName }: { order: OrderView; restauran
             <span className="text-right">{order.tableNumber}</span>
           </>
         )}
+        {order.delivery && (
+          <>
+            <span className="text-[#6b5f51]">{t.delivery.customer}</span>
+            <span className="text-right">{order.delivery.customerName}</span>
+            <span className="col-span-2 text-[#6b5f51]">{order.delivery.address}</span>
+          </>
+        )}
         {order.waiterName && (
           <>
             <span className="text-[#6b5f51]">{t.receipt.waiter}</span>
@@ -72,6 +79,7 @@ export function Receipt({ order, restaurantName }: { order: OrderView; restauran
           <Row label={`${t.orders.discount}${order.discountReason ? ` (${order.discountReason})` : ""}`} value={`−${formatMoney(totals.discountAmount, { currency: false })}`} />
         )}
         {totals.serviceAmount > 0 && <Row label={fmt(t.orders.service, { p: order.serviceChargeBp / 100 })} value={formatMoney(totals.serviceAmount, { currency: false })} />}
+        {totals.deliveryFee > 0 && <Row label={t.orders.delivery} value={formatMoney(totals.deliveryFee, { currency: false })} />}
         {totals.prepaymentApplied > 0 && <Row label={t.orders.prepayment} value={`−${formatMoney(totals.prepaymentApplied, { currency: false })}`} />}
       </dl>
       <div className="mt-3 flex items-baseline justify-between">
