@@ -10,7 +10,8 @@ PRD и роадмап лежат в `prd and roadmap/`.
 ```bash
 npm install
 cp .env.example .env      # и вписать SESSION_SECRET
-npm run db:setup          # создать базу и залить демо-данные
+npm run db:setup          # создать базу и залить начальные данные
+npm run db:demo           # история продаж за 30 дней (по желанию)
 npm run dev               # http://localhost:3000
 ```
 
@@ -22,7 +23,8 @@ npm run dev               # http://localhost:3000
 | --- | --- |
 | `npm run dev` | Запуск для разработки |
 | `npm run db:migrate` | Применить изменения `prisma/schema.prisma` |
-| `npm run db:seed` | Залить демо-данные |
+| `npm run db:seed` | Залить начальные данные (меню, склад, сотрудники, столы) |
+| `npm run db:demo` | Сгенерировать историю продаж за 30 дней (для отчётов и зарплаты) |
 | `npm run db:reset` | Удалить базу и создать заново с демо-данными |
 | `npm run db:studio` | Посмотреть базу в браузере |
 

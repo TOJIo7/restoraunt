@@ -12,7 +12,8 @@
     "db:setup": "prisma migrate dev --name init && prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:demo": "tsx prisma/demo.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
