@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "export TZ=Asia/Dushanbe DATABASE_URL=file:./dev.db && npx prisma migrate deploy && npx prisma db seed && npx tsx prisma/demo.ts && next build"
+}

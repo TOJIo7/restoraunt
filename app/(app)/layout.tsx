@@ -11,9 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // сколько продуктов ниже минимума — значок у «Склада»
   const ingredients = await db.ingredient.findMany({ where: { active: true }, select: { stock: true, minStock: true } });
   const lowStock = ingredients.filter((i) => i.stock < i.minStock).length;
+  // новые заявки с сайта — красный значок у «Заявок»
+  const newRequests = await db.siteRequest.count({ where: { status: "NEW" } });
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={session.role} userName={session.name} badges={{ stock: lowStock }} />
+      <Sidebar role={session.role} userName={session.name} badges={{ stock: lowStock, requests: newRequests }} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-sm">
           <div className="flex h-16 items-center justify-end gap-3 px-8">

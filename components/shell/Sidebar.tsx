@@ -14,6 +14,8 @@ import {
   ChartColumn,
   Settings,
   LogOut,
+  Presentation,
+  Inbox,
 } from "lucide-react";
 import type { Role } from "@/lib/constants";
 import type { Dict } from "@/lib/i18n";
@@ -26,6 +28,7 @@ type NavKey = keyof Dict["nav"];
 export const NAV: { href: string; key: NavKey; icon: typeof LayoutGrid; roles: Role[] }[] = [
   { href: "/hall", key: "hall", icon: LayoutGrid, roles: ["OWNER", "CASHIER"] },
   { href: "/orders", key: "orders", icon: ClipboardList, roles: ["OWNER", "CASHIER"] },
+  { href: "/requests", key: "requests", icon: Inbox, roles: ["OWNER", "CASHIER"] },
   { href: "/reservations", key: "reservations", icon: CalendarDays, roles: ["OWNER", "CASHIER"] },
   { href: "/cash", key: "cash", icon: Wallet, roles: ["OWNER", "CASHIER"] },
   { href: "/menu", key: "menu", icon: UtensilsCrossed, roles: ["OWNER", "CASHIER"] },
@@ -42,9 +45,9 @@ export function Sidebar({ role, userName, badges = {} }: { role: Role; userName:
 
   return (
     <aside className="sticky top-0 flex h-screen w-[232px] shrink-0 flex-col border-r border-line bg-surface">
-      <div className="px-5 pb-6 pt-6">
+      <Link href="/" className="block px-5 pb-6 pt-6">
         <Wordmark name={t.app.name} tagline={t.app.tagline} />
-      </div>
+      </Link>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
         {items.map(({ href, key, icon: Icon }) => {
@@ -67,7 +70,10 @@ export function Sidebar({ role, userName, badges = {} }: { role: Role; userName:
               <Icon size={20} strokeWidth={1.75} className={`relative ${active ? "text-saffron" : ""}`} />
               <span className="relative">{t.nav[key]}</span>
               {!!badges[key] && (
-                <span className="num relative ml-auto rounded-full bg-apricot/18 px-2 py-0.5 text-xs font-semibold text-apricot" title={t.stock.low}>
+                <span
+                  className={`num relative ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${key === "requests" ? "bg-pomegranate text-on-pomegranate" : "bg-apricot/18 text-apricot"}`}
+                  title={key === "requests" ? t.requests.title : t.stock.low}
+                >
                   {badges[key]}
                 </span>
               )}
@@ -81,6 +87,13 @@ export function Sidebar({ role, userName, badges = {} }: { role: Role; userName:
           <div className="truncate text-sm font-semibold">{userName}</div>
           <div className="text-xs text-muted">{t.roles[role]}</div>
         </div>
+        <Link
+          href="/about"
+          className="mb-1 flex h-11 w-full items-center gap-3 rounded-[var(--radius-btn)] px-3 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-saffron"
+        >
+          <Presentation size={18} strokeWidth={1.75} />
+          {t.nav.about}
+        </Link>
         <form action={() => logout("manual")}>
           <button
             type="submit"

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { Ban, Search } from "lucide-react";
+import { Ban, Search, UtensilsCrossed } from "lucide-react";
 import { useI18n } from "@/components/Providers";
 import { pickName } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
@@ -67,9 +67,25 @@ export function MenuPicker({ menu, onPick, disabled }: { menu: PickerMenu; onPic
               type="button"
               disabled={disabled || d.inStopList}
               onClick={(e) => onPick(d, e.currentTarget)}
-              className="group relative flex h-[92px] flex-col justify-between rounded-[var(--radius-btn)] border border-line bg-surface p-3 text-left transition-[background-color,border-color,transform] duration-150 hover:border-saffron/50 hover:bg-surface-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+              className="group relative flex flex-col overflow-hidden rounded-[var(--radius-btn)] border border-line bg-surface text-left transition-[background-color,border-color,transform] duration-150 hover:border-saffron/50 hover:bg-surface-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              <span className="line-clamp-2 text-[15px] font-medium leading-snug">{name}</span>
+              <span className="relative block h-[84px] w-full shrink-0 overflow-hidden bg-surface-2">
+                {d.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={d.photo}
+                    alt=""
+                    loading="lazy"
+                    className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${d.inStopList ? "grayscale" : ""}`}
+                  />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-muted/50">
+                    <UtensilsCrossed size={22} strokeWidth={1.5} />
+                  </span>
+                )}
+              </span>
+              <span className="flex flex-1 flex-col justify-between gap-1.5 p-2.5">
+              <span className="line-clamp-2 text-[14px] font-medium leading-snug">{name}</span>
               <span className="flex items-center justify-between">
                 <span className="num font-display font-semibold text-saffron">{formatMoney(d.price, { currency: false })}</span>
                 {d.inStopList && (
@@ -78,6 +94,7 @@ export function MenuPicker({ menu, onPick, disabled }: { menu: PickerMenu; onPic
                     {t.menu.stopList}
                   </span>
                 )}
+              </span>
               </span>
             </button>
           );

@@ -1,12 +1,16 @@
 import "server-only";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { ValidationError } from "./validate";
 
 // Фото храним в ./uploads (не в public: public в проде отдаёт только файлы со сборки).
 // Отдаёт их app/api/uploads/[file]/route.ts.
-export const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+// На сервере папку можно вынести на постоянный диск через UPLOAD_DIR (см. scripts/start-prod.mjs).
+// На Vercel (демо) писать можно только в /tmp; исходные фото читаются из папки проекта (BUNDLED_DIR).
+export const BUNDLED_DIR = path.join(process.cwd(), "uploads");
+export const UPLOAD_DIR = process.env.UPLOAD_DIR || (process.env.VERCEL ? path.join(os.tmpdir(), "uploads") : BUNDLED_DIR);
 const ALLOWED: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const MAX_BYTES = 3 * 1024 * 1024;
 

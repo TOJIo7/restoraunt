@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import { BarChart3, FileSpreadsheet, Plus, Table2, Trash2, TriangleAlert } from "lucide-react";
 import { useAction, useI18n } from "@/components/Providers";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { PeriodPicker } from "@/components/ui/PeriodPicker";
 import { Card } from "@/components/ui/Card";
+import { RevealStack } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
@@ -81,11 +82,38 @@ function Tile({ label, children, sub }: { label: string; children: React.ReactNo
   );
 }
 
+/** Крупная выручка ушла за верх экрана — компактная копия «уезжает» в шапку. */
+function StickyRevenue({ value, label, watch }: { value: number; label: string; watch: React.RefObject<HTMLDivElement | null> }) {
+  const visible = useInView(watch, { margin: "-80px 0px 0px 0px" });
+  // до первой проверки useInView даёт false — не показываем копию, пока цифру не увидели
+  const [seen, setSeen] = useState(false);
+  if (visible && !seen) setSeen(true);
+  return (
+    <div className="pointer-events-none fixed left-[calc(50%+116px)] top-3 z-40 -translate-x-1/2">
+      <AnimatePresence>
+        {seen && !visible && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 1.25 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 1.25 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="flex h-10 items-center gap-3 rounded-full border border-saffron/30 bg-surface px-4 shadow-[0_0_24px_var(--glow)]"
+          >
+            <span className="text-xs text-muted">{label}</span>
+            <span className="num font-display text-lg font-semibold">{formatMoney(value)}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ---------- Сводка ----------
 
 function Summary({ r }: { r: Report }) {
   const { t, locale } = useI18n();
   const [asTable, setAsTable] = useState(false);
+  const bigRef = useRef<HTMLDivElement>(null);
   const s = r.summary;
   const cols = r.series.map((x) => ({
     key: x.key,
@@ -96,13 +124,17 @@ function Summary({ r }: { r: Report }) {
 
   if (s.orders === 0) return <EmptyState title={t.reports.noData} text="" />;
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-4 lg:grid-cols-[1.9fr_1fr_1fr_1fr]">
+    <>
+    <StickyRevenue value={s.revenue} label={t.reports.revenue} watch={bigRef} />
+    <RevealStack className="flex flex-col gap-5">
+      <RevealStack className="grid gap-4 lg:grid-cols-[1.9fr_1fr_1fr_1fr]">
         {/* главная цифра — одна на экран, крупно */}
         <Card className="relative overflow-hidden p-6">
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-[radial-gradient(circle,var(--glow),transparent_70%)]" />
           <div className="text-muted">{t.reports.revenue}</div>
-          <CountUp value={s.revenue} className="mt-1 block whitespace-nowrap font-display text-[clamp(30px,3.1vw,48px)] font-semibold leading-tight" />
+          <div ref={bigRef}>
+            <CountUp value={s.revenue} className="mt-1 block whitespace-nowrap font-display text-[clamp(30px,3.1vw,48px)] font-semibold leading-tight" />
+          </div>
         </Card>
         <Tile label={t.reports.orders}>
           <CountUp value={s.orders} money={false} />
@@ -113,7 +145,7 @@ function Summary({ r }: { r: Report }) {
         <Tile label={t.reports.grossProfit} sub={`${t.reports.cost} ${formatMoney(s.cost)}`}>
           <CountUp value={s.grossProfit} currency={false} />
         </Tile>
-      </div>
+      </RevealStack>
 
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
@@ -149,7 +181,7 @@ function Summary({ r }: { r: Report }) {
         )}
       </Card>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <RevealStack className="grid gap-5 md:grid-cols-2">
         <Card className="p-5">
           <h2 className="mb-4 font-display text-lg font-semibold">{t.reports.byMethod}</h2>
           <Parts ariaLabel={t.reports.byMethod} parts={Object.entries(s.byMethod).map(([k, v]) => ({ key: k, label: t.payMethod[k as "CASH"], value: v }))} />
@@ -163,8 +195,9 @@ function Summary({ r }: { r: Report }) {
             </p>
           )}
         </Card>
-      </div>
-    </div>
+      </RevealStack>
+    </RevealStack>
+    </>
   );
 }
 
@@ -180,8 +213,8 @@ function Dishes({ r }: { r: Report }) {
   const marginCls = (m: number) => (m < 30 ? "text-pomegranate" : m < 55 ? "text-apricot" : "text-mint");
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-5 lg:grid-cols-2">
+    <RevealStack className="flex flex-col gap-5">
+      <RevealStack className="grid gap-5 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="mb-4 font-display text-lg font-semibold">{t.reports.topProfit}</h2>
           <RankBars ariaLabel={t.reports.topProfit} rows={byProfit.map((d) => ({ key: String(d.id), label: pickName(d, locale), value: d.profit, sub: `${d.margin}%` }))} />
@@ -190,7 +223,7 @@ function Dishes({ r }: { r: Report }) {
           <h2 className="mb-4 font-display text-lg font-semibold">{t.reports.topSold}</h2>
           <RankBars ariaLabel={t.reports.topSold} unit={t.units.PCS} rows={byQty.map((d) => ({ key: String(d.id), label: pickName(d, locale), value: d.qty }))} />
         </Card>
-      </div>
+      </RevealStack>
 
       <div className="flex items-center gap-2 text-sm">
         <span className="text-muted">{t.reports.sortBy}:</span>
@@ -234,7 +267,7 @@ function Dishes({ r }: { r: Report }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </RevealStack>
   );
 }
 
@@ -246,7 +279,7 @@ function Expenses({ r }: { r: Report }) {
   const [add, setAdd] = useState(false);
   const e = r.expenses;
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_1.4fr]">
+    <RevealStack className="grid gap-5 xl:grid-cols-[1fr_1.4fr]">
       <Card className="p-5">
         <div className="text-sm text-muted">{t.reports.expensesTotal}</div>
         <CountUp value={e.total} className="mb-5 mt-1 block font-display text-4xl font-semibold" />
@@ -295,7 +328,7 @@ function Expenses({ r }: { r: Report }) {
         )}
       </Card>
       {add && <AddExpense onClose={() => setAdd(false)} />}
-    </div>
+    </RevealStack>
   );
 }
 
@@ -358,7 +391,7 @@ function Profit({ r }: { r: Report }) {
   const max = Math.max(1, p.revenue);
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
+    <RevealStack className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
       <Card className="p-6">
         <h2 className="mb-5 font-display text-lg font-semibold">{t.reports.pl}</h2>
         <ul className="flex flex-col gap-3">
@@ -407,7 +440,7 @@ function Profit({ r }: { r: Report }) {
           </div>
         </Card>
       </div>
-    </div>
+    </RevealStack>
   );
 }
 
@@ -417,8 +450,8 @@ function StockReport({ r }: { r: Report }) {
   const { t, locale } = useI18n();
   const s = r.stock;
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <RevealStack className="flex flex-col gap-5">
+      <RevealStack className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Tile label={t.reports.stockValue} sub={s.low ? <span className="inline-flex items-center gap-1 text-apricot"><TriangleAlert size={12} />{fmt(t.reports.lowNow, { n: s.low })}</span> : undefined}>
           <CountUp value={Math.round(s.value)} currency={false} />
         </Tile>
@@ -434,7 +467,7 @@ function StockReport({ r }: { r: Report }) {
         <Tile label={t.reports.inventoryDiff}>
           <span className={s.inventory < 0 ? "text-pomegranate" : ""}>{formatMoney(s.inventory, { currency: false })}</span>
         </Tile>
-      </div>
+      </RevealStack>
       <Card className="p-5">
         <h2 className="mb-4 font-display text-lg font-semibold">{t.reports.topLosses}</h2>
         {s.losses.length === 0 ? (
@@ -446,6 +479,6 @@ function StockReport({ r }: { r: Report }) {
           />
         )}
       </Card>
-    </div>
+    </RevealStack>
   );
 }

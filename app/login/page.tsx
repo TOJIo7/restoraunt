@@ -1,5 +1,8 @@
 import { getDict } from "@/lib/i18n/server";
-import { SuzaniRosette, SuzaniStrip } from "@/components/Ornament";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { SuzaniStrip } from "@/components/Ornament";
+import { LoginArt } from "./LoginArt";
 import { Wordmark } from "@/components/Logo";
 import { PrefsToggles } from "@/components/shell/PrefsToggles";
 import { PinPad } from "./PinPad";
@@ -8,13 +11,22 @@ export default async function LoginPage() {
   const { t } = await getDict();
   return (
     <main className="relative grid min-h-screen grid-cols-1 overflow-hidden lg:grid-cols-[1.1fr_1fr]">
-      {/* Левая часть: декор. На этапе 7 здесь будет 3D-чайник. */}
-      <section className="relative hidden items-center justify-center border-r border-line bg-surface lg:flex">
+      {/* Левая часть: 3D-чайник на лягане (или орнамент, если 3D нельзя) */}
+      <section className="relative hidden items-center justify-center overflow-hidden border-r border-line bg-surface lg:flex">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_55%,var(--glow),transparent_60%)]" />
-        <SuzaniRosette size={460} className="relative text-saffron/45 motion-safe:animate-[spin_120s_linear_infinite]" />
-        <div className="absolute bottom-10 left-10 right-10">
+        <LoginArt />
+        <Link
+          href="/about"
+          className="absolute right-6 top-6 z-10 inline-flex h-10 items-center gap-2 rounded-[var(--radius-btn)] border border-line bg-surface/80 px-4 text-sm text-muted transition-colors hover:border-saffron/40 hover:text-saffron"
+        >
+          {t.login.about}
+          <ArrowRight size={16} strokeWidth={1.75} />
+        </Link>
+        <div className="pointer-events-none absolute bottom-10 left-10 right-10">
           <SuzaniStrip className="mb-6 text-line" />
-          <Wordmark name={t.app.name} tagline={t.app.tagline} />
+          <Link href="/" className="pointer-events-auto inline-block">
+            <Wordmark name={t.app.name} tagline={t.app.tagline} />
+          </Link>
         </div>
       </section>
 
@@ -22,9 +34,9 @@ export default async function LoginPage() {
         <div className="absolute right-6 top-6">
           <PrefsToggles />
         </div>
-        <div className="mb-8 lg:hidden">
+        <Link href="/" className="mb-8 lg:hidden">
           <Wordmark name={t.app.name} tagline={t.app.tagline} />
-        </div>
+        </Link>
         <PinPad />
       </section>
     </main>

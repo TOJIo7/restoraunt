@@ -7,8 +7,11 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = pathname === "/login";
+  // «О проекте» — презентация для защиты, открывается и без входа
+  // главная — сайт для гостей (меню, бронь, доставка)
+  const isPublic = pathname === "/about" || pathname === "/";
 
-  if (!session && !isLogin) {
+  if (!session && !isLogin && !isPublic) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
   if (session && isLogin) {

@@ -2,7 +2,7 @@
 
 import { CalendarClock, CircleCheck, Receipt, Users } from "lucide-react";
 import { useI18n } from "@/components/Providers";
-import { fmt } from "@/lib/i18n";
+import { fmt, type Dict } from "@/lib/i18n";
 import type { TableStatus } from "@/lib/constants";
 import type { HallTable } from "@/lib/hall";
 
@@ -41,23 +41,29 @@ function chairs(shape: string, seats: number) {
   return out;
 }
 
-export function TablePiece({ table, now, editing, onClick }: { table: HallTable; now: number; editing: boolean; onClick: () => void }) {
-  const { t } = useI18n();
-  const st = STATUS_STYLE[table.status];
-  const Icon = st.icon;
-  const minutes = table.since ? Math.max(0, Math.floor((now - new Date(table.since).getTime()) / 60000)) : null;
-  const longWait = table.status === "BILL" && minutes !== null && minutes >= 10;
-  const resTime = table.reservation
-    ? new Date(table.reservation.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-    : null;
+/** Подпись под столом: всегда со словом статуса (цвет + иконка + слово). Общая для 2D и 3D. */
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-  // подпись всегда со словом статуса (цвет + иконка + слово)
+export function tableCaption(table: HallTable, now: number, t: Dict) {
+  const minutes = table.since ? Math.max(0, Math.floor((now - new Date(table.since).getTime()) / 60000)) : null;
+  const resTime = table.reservation ? hhmm(table.reservation.at) : null;
   const caption =
     table.status === "BUSY" && minutes !== null
       ? fmt(t.hall.busyCaption, { m: minutes })
       : table.status === "RESERVED" && resTime
         ? fmt(t.hall.reservedCaption, { time: resTime })
-        : t.tableStatus[table.status];
+        : table.status === "FREE" && table.upcoming
+          ? fmt(t.hall.freeUntil, { time: hhmm(table.upcoming.at) })
+          : t.tableStatus[table.status];
+  return { caption, longWait: table.status === "BILL" && minutes !== null && minutes >= 10 };
+}
+
+export function TablePiece({ table, now, editing, onClick }: { table: HallTable; now: number; editing: boolean; onClick: () => void }) {
+  const { t } = useI18n();
+  const st = STATUS_STYLE[table.status];
+  const Icon = st.icon;
+  const { caption, longWait } = tableCaption(table, now, t);
+  const upcoming = table.upcoming;
 
   const shapeCls =
     table.shape === "round" ? "aspect-square h-[58%] rounded-full" : table.shape === "long" ? "h-[54%] w-[84%] rounded-xl" : "aspect-square h-[56%] rounded-lg";
@@ -83,10 +89,20 @@ export function TablePiece({ table, now, editing, onClick }: { table: HallTable;
         ))}
         {/* пульс у стола, который давно ждёт оплаты */}
         {longWait && <span className="absolute inset-[-6px] rounded-[inherit] border-2 border-saffron/60 motion-safe:animate-ping" />}
+        {/* бронь позже — жёлтая метка со временем, стол при этом можно занимать */}
+        {upcoming && (
+          <span
+            title={fmt(t.hall.upcomingTitle, { time: hhmm(upcoming.at), name: upcoming.name, n: upcoming.guests })}
+            className="num absolute -right-3 -top-3 z-10 inline-flex items-center gap-1 rounded-full bg-saffron px-1.5 py-0.5 text-[11px] font-bold leading-none text-on-saffron shadow"
+          >
+            <CalendarClock size={11} strokeWidth={2.2} aria-hidden />
+            {hhmm(upcoming.at)}
+          </span>
+        )}
         <span className="num font-display text-[clamp(18px,2.2vw,28px)] font-semibold leading-none">{table.number}</span>
         <Icon size={15} strokeWidth={1.9} className={`mt-1 ${st.text}`} aria-hidden />
       </div>
-      <span className={`num max-w-full truncate px-1 text-xs font-medium ${st.text}`}>{caption}</span>
+      <span className={`num max-w-full truncate px-1 text-xs font-medium ${table.status === "FREE" && upcoming ? "text-saffron" : st.text}`}>{caption}</span>
     </button>
   );
 }

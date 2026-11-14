@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { CalendarDays, ChevronLeft, ChevronRight, MessageSquare, Pencil, Phone, Plus, Users, Wallet } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, MessageSquare, Pencil, Phone, Plus, Trash2, Users, Wallet } from "lucide-react";
 import { useAction, useI18n } from "@/components/Providers";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -14,7 +14,7 @@ import { NoShiftBanner } from "@/components/orders/NoShiftBanner";
 import type { FreeTable } from "@/components/orders/NewOrderModal";
 import { fmt } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
-import { cancelReservation, markNoShow, seatReservation } from "@/app/actions/reservations";
+import { cancelReservation, deleteReservation, markNoShow, seatReservation } from "@/app/actions/reservations";
 import { ReservationForm } from "./ReservationForm";
 
 export type ReservationRow = {
@@ -44,7 +44,17 @@ const STATUS_CLS: Record<string, string> = {
   NO_SHOW: "bg-pomegranate/12 text-pomegranate",
 };
 
-const addDays = (date: string, n: number) => {
+// вкладки над списком: «Пришли» включает и уже закрытые («Состоялась»)
+const FILTER_STATUSES = {
+  BOOKED: ["BOOKED"],
+  SEATED: ["SEATED", "DONE"],
+  CANCELLED: ["CANCELLED"],
+  NO_SHOW: ["NO_SHOW"],
+} as const satisfies Record<string, readonly string[]>;
+type Filter = "all" | keyof typeof FILTER_STATUSES;
+const FILTERS: Filter[] = ["all", "BOOKED", "SEATED", "CANCELLED", "NO_SHOW"];
+
+const addDays =(date: string, n: number) => {
   const d = new Date(`${date}T12:00:00`);
   d.setDate(d.getDate() + n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -72,11 +82,15 @@ export function ReservationsClient({
   const [form, setForm] = useState<{ open: boolean; row?: ReservationRow }>({ open: false });
   const [cancel, setCancel] = useState<ReservationRow | null>(null);
   const [seat, setSeat] = useState<ReservationRow | null>(null);
+  const [remove, setRemove] = useState<ReservationRow | null>(null);
   const [pending, act] = useAction();
   const loc = locale === "tg" ? "tg-TJ" : "ru-RU";
 
+  const [filter, setFilter] = useState<Filter>("all");
   const active = rows.filter((r) => r.status === "BOOKED" || r.status === "SEATED");
   const guests = active.reduce((s, r) => s + r.guests, 0);
+  const inFilter = (r: ReservationRow, f: Filter) => f === "all" || (FILTER_STATUSES[f] as readonly string[]).includes(r.status);
+  const shown = rows.filter((r) => inFilter(r, filter));
   const days = Array.from({ length: 7 }, (_, i) => addDays(date, i));
 
   const doSeat = (r: ReservationRow) => {
@@ -134,11 +148,38 @@ export function ReservationsClient({
         {new Date(`${date}T12:00:00`).toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" })}
       </h2>
 
+      {rows.length > 0 && (
+        <div className="no-scrollbar mb-4 flex gap-1.5 overflow-x-auto" role="tablist">
+          {FILTERS.map((f) => {
+            const n = rows.filter((r) => inFilter(r, f)).length;
+            const on = filter === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setFilter(f)}
+                className={`relative inline-flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-btn)] px-3.5 text-sm font-medium transition-colors ${
+                  on ? "text-on-saffron" : "text-muted hover:bg-surface-2 hover:text-text"
+                }`}
+              >
+                {on && <motion.span layoutId="res-filter" className="absolute inset-0 rounded-[var(--radius-btn)] bg-saffron" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                <span className="relative">{t.reservations.filters[f]}</span>
+                <span className={`num relative rounded-full px-1.5 text-xs font-semibold ${on ? "bg-on-saffron/15" : "bg-surface-2"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <EmptyState title={t.reservations.empty} text="" />
+      ) : shown.length === 0 ? (
+        <p className="py-10 text-center text-muted">{t.reservations.emptyFilter}</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {rows.map((r, i) => {
+          {shown.map((r, i) => {
             const open = r.status === "BOOKED";
             return (
               <motion.div
@@ -151,7 +192,7 @@ export function ReservationsClient({
                 <div className="num w-20 font-display text-3xl font-semibold">{r.time}</div>
                 <div className="min-w-[220px] flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-semibold">{r.name}</span>
+                    <span className={`text-lg font-semibold ${r.status === "CANCELLED" ? "text-muted line-through" : ""}`}>{r.name}</span>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLS[r.status]}`}>{t.reservations.status[r.status as "BOOKED"]}</span>
                     {r.wholeHall && <span className="rounded-full border border-lapis/40 px-2.5 py-0.5 text-xs font-semibold text-lapis">{t.reservations.hallBanquet}</span>}
                   </div>
@@ -196,6 +237,18 @@ export function ReservationsClient({
                       </Button>
                     </>
                   )}
+                  {(r.status === "CANCELLED" || r.status === "NO_SHOW") && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="hover:!bg-pomegranate/10 hover:!text-pomegranate"
+                      onClick={() => setRemove(r)}
+                      aria-label={t.common.delete}
+                    >
+                      <Trash2 size={16} strokeWidth={1.75} />
+                      {t.common.delete}
+                    </Button>
+                  )}
                   {r.orderId && (
                     <Link href={`/orders/${r.orderId}`} className="text-sm text-lapis hover:underline">
                       {t.receipt.title} →
@@ -210,6 +263,34 @@ export function ReservationsClient({
 
       {form.open && <ReservationForm row={form.row} defaultDate={date} tables={tables} hasShift={hasShift} onClose={() => setForm({ open: false })} />}
       {cancel && <CancelReservation row={cancel} onClose={() => setCancel(null)} />}
+      {remove && (
+        <Modal
+          open
+          onClose={() => setRemove(null)}
+          title={t.reservations.deleteTitle}
+          width={460}
+          footer={
+            <>
+              <Button onClick={() => setRemove(null)}>{t.common.close}</Button>
+              <Button
+                variant="danger"
+                disabled={pending}
+                onClick={() => act(() => deleteReservation(remove.id), { success: t.reservations.deleted, onOk: () => setRemove(null) })}
+              >
+                <Trash2 size={16} strokeWidth={1.75} />
+                {t.common.delete}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2 pb-2">
+            <div className="text-[15px]">
+              {remove.time} · {remove.name} · {fmt(t.hall.guests, { n: remove.guests })}
+            </div>
+            <p className="text-sm text-muted">{t.reservations.deleteHint}</p>
+          </div>
+        </Modal>
+      )}
       {seat && <SeatModal row={seat} freeTables={freeTables} onClose={() => setSeat(null)} />}
     </>
   );

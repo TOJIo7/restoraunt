@@ -145,6 +145,28 @@ export async function markNoShow(id: number) {
 }
 
 /**
+ * Удалить закрытую бронь (отменённую или «не пришли») из списка.
+ * Активные и состоявшиеся не удаляются: первые надо отменить, вторые связаны с заказом.
+ * Деньги не трогаем: возврат/предоплата уже записаны в кассе отдельными операциями.
+ */
+export async function deleteReservation(id: number) {
+  return run(async () => {
+    const s = await requireSession();
+    const r = await db.reservation.findUnique({ where: { id: int(id, { min: 1 }) } });
+    if (!r) throw new ValidationError("notFound");
+    if (r.status !== "CANCELLED" && r.status !== "NO_SHOW") throw new ValidationError("reservationClosed");
+    await db.$transaction([
+      // заявка с сайта ссылается на бронь простым числом — отвязываем
+      db.siteRequest.updateMany({ where: { reservationId: r.id }, data: { reservationId: null } }),
+      db.reservation.delete({ where: { id: r.id } }),
+    ]);
+    await audit(s.uid, "RESERVATION_DELETED", "Reservation", r.id, { name: r.name, startsAt: r.startsAt.toISOString(), status: r.status, prepayment: r.prepayment });
+    refresh();
+    revalidatePath("/requests");
+  });
+}
+
+/**
  * Гости пришли: бронь превращается в заказ. Предоплата сразу вычитается из суммы к оплате.
  * Для брони «весь зал» или без стола нужно выбрать стол (обычно банкетный).
  */

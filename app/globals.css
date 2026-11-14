@@ -177,3 +177,58 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== Метки на карте (Leaflet divIcon) ===== */
+.map-pin {
+  position: relative;
+  width: 34px;
+  height: 44px;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+.map-pin::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  transform-origin: center;
+  background: var(--saffron);
+  border: 2px solid #fff;
+  top: 4px;
+}
+.map-pin span {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+}
+.map-pin--home::before {
+  background: var(--pomegranate);
+}
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--surface-2);
+}
+[data-theme="dark"] .leaflet-tile-pane {
+  /* тёмная тема: приглушаем светлые тайлы, чтобы карта не слепила */
+  filter: brightness(0.75) contrast(1.1) saturate(0.8);
+}
+
+/* ===== Сайт для гостей ===== */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+/* плавная прокрутка по якорям меню — только на сайте гостей */
+html:has(.site-root) {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(.site-root) { scroll-behavior: auto; }
+}

@@ -267,6 +267,8 @@ model Delivery {
   customerName String
   phone        String
   address      String
+  lat          Float? // точка на карте, если гость указал её на сайте
+  lng          Float?
   fee          Int       @default(0)
   courierId    Int?
   courier      Employee? @relation("courier", fields: [courierId], references: [id])
@@ -365,4 +367,37 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------- Заявки с сайта ----------
+// Гость оформляет заказ или бронь на сайте → заявка ждёт кассира.
+// Кассир звонит, подтверждает — и только тогда создаётся настоящий заказ / бронь.
+
+model SiteRequest {
+  id            Int       @id @default(autoincrement())
+  kind          String // ORDER | BOOKING
+  status        String    @default("NEW") // NEW | ACCEPTED | REJECTED
+  name          String
+  phone         String
+  comment       String?
+  // заказ
+  orderType     String? // DELIVERY | TAKEAWAY
+  address       String?
+  lat           Float?
+  lng           Float?
+  payMethod     String? // CASH | CARD — чем гость хочет заплатить при получении
+  items         String? // JSON: [{ dishId, qty }]
+  total         Int? // сумма на момент заявки (для глаза кассира; при подтверждении цены берутся заново)
+  // бронь
+  startsAt      DateTime?
+  guests        Int?
+  // обработка
+  orderId       Int?
+  reservationId Int?
+  rejectReason  String?
+  handledById   Int?
+  handledAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, createdAt])
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { Check, LayoutDashboard, Plus, ShoppingBag } from "lucide-react";
@@ -11,7 +11,27 @@ import { fmt } from "@/lib/i18n";
 import { HALL_COLS, HALL_ROWS, TABLE_STATUSES, tableSpan } from "@/lib/constants";
 import { saveLayout } from "@/app/actions/hall";
 import type { HallTable } from "@/lib/hall";
-import { STATUS_STYLE, TablePiece } from "./TablePiece";
+import { STATUS_STYLE, TablePiece, tableCaption } from "./TablePiece";
+import dynamic from "next/dynamic";
+import { use3DSupport } from "@/components/three/support";
+
+// 3D грузится отдельным файлом и только когда включили — касса открывается мгновенно
+const Hall3D = dynamic(() => import("@/components/three/Hall3D"), {
+  ssr: false,
+  loading: () => <div className="skeleton h-full w-full rounded-[var(--radius-card)]" />,
+});
+const VIEW_KEY = "hall-view";
+const readView = (): "2d" | "3d" => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "3d" ? "3d" : "2d";
+  } catch {
+    return "2d";
+  }
+};
+const subscribeView = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+};
 import { NewOrderModal, type FreeTable, type HallReservation, type Waiter } from "@/components/orders/NewOrderModal";
 import { NoShiftBanner } from "@/components/orders/NoShiftBanner";
 import { TableForm } from "./TableForm";
@@ -52,6 +72,26 @@ export function HallClient({
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // 2D / 3D: на кассе по умолчанию 2D, выбор запоминается в браузере
+  const support3D = use3DSupport();
+  const stored = useSyncExternalStore(subscribeView, readView, () => "2d" as const);
+  const [picked, setPicked] = useState<"2d" | "3d" | null>(null);
+  const view = picked ?? stored;
+  const changeView = (v: "2d" | "3d") => {
+    setPicked(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {}
+  };
+  const show3D = view === "3d" && support3D === true && !editing;
+
+  const openTable = (tb: HallTable) => {
+    // занятый стол — сразу в его заказ; свободный — открыть новый
+    if (tb.orderId) return router.push(`/orders/${tb.orderId}`);
+    if (!hasShift) return toast("error", t.errors.noShift);
+    setNewOrder({ tableId: tb.id, reservation: tb.reservation });
+  };
 
   const placed = useMemo(() => tables.map((tb) => ({ ...tb, ...(layout[tb.id] ?? {}) })), [tables, layout]);
   const counts = Object.fromEntries(TABLE_STATUSES.map((s) => [s, tables.filter((x) => x.status === s).length]));
@@ -135,9 +175,47 @@ export function HallClient({
           );
         })}
         {editing && <span className="ml-auto text-sm text-saffron">{t.hall.dragHint}</span>}
+        {!editing && support3D && (
+          <div className="ml-auto flex items-center gap-3">
+            {show3D && <span className="hidden text-xs text-muted xl:inline">{t.hall.rotateHint}</span>}
+            <div className="flex rounded-[var(--radius-btn)] border border-line bg-surface p-1" role="group" aria-label={t.hall.view}>
+              {(["2d", "3d"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => changeView(v)}
+                  aria-pressed={view === v}
+                  className={`relative h-8 rounded-lg px-3 text-xs font-semibold transition-colors ${view === v ? "text-saffron" : "text-muted hover:text-text"}`}
+                >
+                  {view === v && <motion.span layoutId="hall-view" className="absolute inset-0 rounded-lg bg-saffron/15" />}
+                  <span className="relative">{v.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* План зала */}
+      {show3D ? (
+        <div className="relative h-[max(440px,calc(100vh-300px))] overflow-hidden rounded-[var(--radius-card)] border border-line">
+          <Hall3D
+            tables={tables.map((tb) => {
+              const { caption, longWait } = tableCaption(tb, now, t);
+              return { ...tb, caption, pulse: longWait };
+            })}
+            onPick={(p) => {
+              const tb = tables.find((x) => x.id === p.id);
+              if (tb) openTable(tb);
+            }}
+            labels={{ kitchen: t.hall.kitchen, cash: t.hall.cashDesk, entrance: t.hall.entrance }}
+            onSlow={() => {
+              changeView("2d");
+              toast("error", t.hall.slow3d);
+            }}
+          />
+        </div>
+      ) : (
+      /* План зала */
       <div className="relative rounded-[var(--radius-card)] border border-line bg-surface p-5 pb-7">
         <FloorLabel className="right-10 top-0 -translate-y-1/2">{t.hall.kitchen}</FloorLabel>
         <FloorLabel className="left-10 top-0 -translate-y-1/2">{t.hall.cashDesk}</FloorLabel>
@@ -187,16 +265,14 @@ export function HallClient({
                 onClick={() => {
                   if (justDragged.current) return;
                   if (editing) return setForm({ open: true, table: tb });
-                  // занятый стол — сразу в его заказ; свободный — открыть новый
-                  if (tb.orderId) return router.push(`/orders/${tb.orderId}`);
-                  if (!hasShift) return toast("error", t.errors.noShift);
-                  setNewOrder({ tableId: tb.id, reservation: tb.reservation });
+                  openTable(tb);
                 }}
               />
             </motion.div>
           ))}
         </div>
       </div>
+      )}
 
       {newOrder && (
         <NewOrderModal

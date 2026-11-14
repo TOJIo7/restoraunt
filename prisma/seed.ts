@@ -2,6 +2,8 @@
 // Меню, склад и продажи за месяц добавятся на следующих этапах.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { copyFile, mkdir, access } from "node:fs/promises";
+import path from "node:path";
 
 const db = new PrismaClient();
 const TJS = (n: number) => Math.round(n * 100);
@@ -168,6 +170,62 @@ async function main() {
       dishCount++;
     }
   }
+
+  // ---------- Фото блюд ----------
+  // Исходники лежат в app/foodimg, копируются в uploads/ (оттуда их отдаёт /api/uploads).
+  // Ставим только блюдам без фото — своё фото, загруженное владельцем, не трогаем.
+  const photos: Record<string, string> = {
+    Плов: "plov",
+    "Плов свадебный": "plovsadebniy",
+    Лагман: "lagman",
+    Манты: "manti",
+    Курутоб: "kururtob",
+    Каурдак: "kaurdak",
+    Димлама: "dimlama",
+    Шурпо: "shurbo",
+    Угро: "ugro",
+    Мастова: "mastava",
+    Чучвара: "chuchvara",
+    "Шашлык из баранины": "shashlikbaranina",
+    "Шашлык из говядины": "shashlikgovyadina",
+    "Шашлык из курицы": "shashlikkuriniy",
+    "Люля-кебаб": "lulyakebab",
+    Жигар: "pechencgrudkoy",
+    // ниже — с Wikimedia Commons, авторы и лицензии в app/foodimg/CREDITS.md
+    Шакароб: "shakarob",
+    Ачичук: "achichuk",
+    Оливье: "olivier",
+    "Овощная нарезка": "vegplate",
+    Самбуса: "samsa",
+    "Самбуса тандырная": "sambusa_tandir",
+    Лепёшка: "lepeshka",
+    Фатир: "fatir",
+    "Чай зелёный": "tea_green",
+    "Чай чёрный": "tea_black",
+    "Чай с лимоном": "tea_lemon",
+    Компот: "kompot",
+    Дуғ: "dugh",
+    "Кола 0,5 л": "cola0.5",
+    "Вода 0,5 л": "voda",
+    "Чак-чак": "chakchak",
+    Халва: "halva",
+    Пахлава: "baklava",
+  };
+  const srcDir = path.join(process.cwd(), "app", "foodimg");
+  const uploadDir = path.join(process.cwd(), "uploads");
+  await mkdir(uploadDir, { recursive: true });
+  let photoCount = 0;
+  for (const [ru, file] of Object.entries(photos)) {
+    const dish = await db.dish.findFirst({ where: { nameRu: ru } });
+    const src = path.join(srcDir, `${file}.jpg`);
+    if (!dish || dish.photo || !(await access(src).then(() => true, () => false))) continue;
+    // в имени для /api/uploads допустимы только буквы, цифры, _ и - (cola0.5 → cola0-5)
+    const name = `menu-${file.replace(/[^\w-]/g, "-")}.jpg`;
+    await copyFile(src, path.join(uploadDir, name));
+    await db.dish.update({ where: { id: dish.id }, data: { photo: `/api/uploads/${name}` } });
+    photoCount++;
+  }
+  if (photoCount) console.log(`Фото блюд: ${photoCount}`);
 
   // ---------- Склад ----------
   // [RU, TJ, единица, цена закупки TJS за единицу, остаток, минимум]
